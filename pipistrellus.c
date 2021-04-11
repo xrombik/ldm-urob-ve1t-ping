@@ -43,6 +43,7 @@ void udp_init_addr(udp_addr* udp_addr, const uint8_t* addr, const uint16_t port)
 
 bool udp_receive(const buffer* rx_buffer, const udp_addr* trgt, const udp_addr* sndr, uint32_t netmask)
 {
+    // TODO: Заглушка, т.к. нужно проверить 
     if (rx_buffer->size_used < sizeof(udp_frame))
         return false;
     udp_frame* udpf = (udp_frame*) rx_buffer->data;
@@ -78,6 +79,7 @@ bool udp_send(buffer* tx_buffer, const udp_addr* src, const udp_addr* dst)
 
 bool udp_get_data(const buffer* x_buffer, udp_buffer* udpb)
 {
+    // TODO: Заглушка, т.к. нужно проверить 
     udp_frame* udpf = (udp_frame*) x_buffer->data;
     if (udpf->proto != UDP_PROTO)
         return false;

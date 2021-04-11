@@ -1,4 +1,5 @@
 Для платы LDM-uROB-K1986BE1Q1
+https://ldm-systems.ru/product/21103
 
 [2021-19-03]
 1. Передаёт пакет с нулями и строчкой "ETHERNET DATA FROM 1986VE1T"
