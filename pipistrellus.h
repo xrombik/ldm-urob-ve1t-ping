@@ -48,7 +48,7 @@ typedef struct
 {
     uint8_t trgt[6]; /**< mac-адрес получателя */
     uint8_t sndr[6]; /**< mac-адрес отправителя */
-  uint16_t type;  /**< тип протокола */
+    uint16_t type;  /**< тип протокола */
 } mac_addrs;
 
 
@@ -135,8 +135,10 @@ typedef struct
 
 #pragma pack(pop)
 
-/** */
-uint16_t get_checksum(const void *data, uint32_t len);
+/** Вычисляет контрольную сумму для Ethernet фреймов
+\param[in] data Указатель на начало области
+\param[in] size Размер области в байтах */
+uint16_t get_checksum(const void *data, uint32_t size);
 
 
 /** Заполняет структуру 
@@ -182,52 +184,5 @@ bool icmp_send(buffer* tx_buffer, const buffer* rx_buffer);
 bool arp_receive(const buffer* rx_buffer, const mac_addrs* maddr, uint32_t ip_addr);
 
 
-/** */
+/** Формирует ответ arp-запрос */
 bool arp_send(buffer* tx_buffer, const buffer* rx_buffer, const mac_addrs* mac_addr, const uint32_t ip_addr);
-
-
-/** */
-void udp_init_addr(udp_addr* udp_addr, const uint8_t* addr, const uint16_t port);
-
-
-/** Размещает буфер содержащий udp-датаграмму
- \param[in] x_buffer Буфер в котором содержится пакет с udp-датаграммой
- \param[out] udp_buffer Размещаемый udp-буфер
- \return true - если буфер размещён, false - если иначе */
-bool udp_get_data(const buffer* x_buffer, buffer* udp_buffer);
-
-
-/** */
-bool udp_get_src(const buffer* x_buffer, udp_addr* addr);
-
-
-/** */
-bool udp_get_dst(const buffer* x_buffer, udp_addr* addr);
-
-
-/** */
-bool udp_cmp_src(const buffer* x_buffer, const udp_addr* addr);
-
-
-/** */
-bool udp_cmp_dst(const buffer* x_buffer, const udp_addr* addr);
-
-
-/** */
-bool udp_receive(const buffer* rx_buffer, const udp_addr* trgt, const udp_addr* sndr, uint32_t netmask);
-
-
-/** */
-bool udp_set_src(buffer* tx_buffer, udp_addr* addr);
-
-
-/** */
-bool udp_set_dst(buffer* tx_buffer, udp_addr* addr);
-
-
-/** */
-bool udp_set_xsum(buffer* tx_buffer);
-
-
-/** */
-bool udp_send(buffer* tx_buffer, const udp_addr* src, const udp_addr* dst);

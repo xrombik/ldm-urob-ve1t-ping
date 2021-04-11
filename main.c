@@ -154,9 +154,6 @@ int main(void)
     mac_addrs maddr;
     mac_init_addr(&maddr, MAC_SRC, MAC_BROADCAST);
     
-    udp_addr self_addr;
-    udp_init_addr(&self_addr, IP_ADDR, IP_PORT);
-    
     buffer tx_buffer;
     buffer rx_buffer;
     
@@ -170,11 +167,11 @@ int main(void)
         if (!rx_buffer.size_used)
             continue;
         
-        if (arp_receive(&rx_buffer, &maddr, self_addr.addr))
+        if (arp_receive(&rx_buffer, &maddr, *(uint32_t*)IP_ADDR))
         {
-            arp_send(&tx_buffer, &rx_buffer, &maddr, self_addr.addr);
+            arp_send(&tx_buffer, &rx_buffer, &maddr, *(uint32_t*)IP_ADDR);
         }
-        else if (icmp_receive(&rx_buffer, self_addr.addr))
+        else if (icmp_receive(&rx_buffer, *(uint32_t*)IP_ADDR))
         {
             icmp_send(&tx_buffer, &rx_buffer);
         }
