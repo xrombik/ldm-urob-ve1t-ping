@@ -10,6 +10,12 @@ uint16_t IP_ANY_PORT   = 0x0000;
 extern uint32_t eth_printf(const char* fmt, ...);
 
 
+void init_buffer(buffer* buf)
+{
+    buf->size_alloc = sizeof buf->data;
+    buf->size_used = 0U;
+}
+
 uint16_t get_checksum(const void *data, uint32_t count)
 {
     /* Compute Internet Checksum for "count" bytes beginning at location "addr"  */
@@ -30,62 +36,7 @@ uint16_t get_checksum(const void *data, uint32_t count)
     while (sum >> 16U)
        sum = (sum & 0xffff) + (sum >> 16U);
 
-   return ~(0xffff & sum);
-}
-
-
-void udp_init_addr(udp_addr* udp_addr, const uint8_t* addr, const uint16_t port)
-{
-    memcpy(&udp_addr->addr, addr, sizeof udp_addr->addr);
-    udp_addr->port = swap16(port);
-}
-
-
-bool udp_receive(const buffer* rx_buffer, const udp_addr* trgt, const udp_addr* sndr, uint32_t netmask)
-{
-    // TODO: Заглушка, т.к. нужно проверить 
-    if (rx_buffer->size_used < sizeof(udp_frame))
-        return false;
-    udp_frame* udpf = (udp_frame*) rx_buffer->data;
-    if (udpf->proto != UDP_PROTO)
-        return false;
-
-    if (!((sndr->port == IP_ANY_PORT) || (udpf->trgt_port == IP_ANY_PORT)))
-        if (udpf->sndr_port != sndr->port)
-            return false;
-
-    if (!((sndr->addr == *(const uint32_t*)IP_ANY_ADDR) || (udpf->trgt_addr == *(const uint32_t*)IP_ANY_ADDR)))
-        if (udpf->sndr_addr != sndr->addr)
-            return false;
-    
-    if (udpf->trgt_port != trgt->port)
-        return false;
-    
-    if (udpf->trgt_addr != trgt->addr)
-        return false;
-    
-    netmask = ~ netmask;
-    
-    return ((udpf->trgt_addr & netmask) & (trgt->addr & netmask)) > 0;
-}
-
-
-bool udp_send(buffer* tx_buffer, const udp_addr* src, const udp_addr* dst)
-{
-    // TODO: Заглушка
-    return true;
-}
-
-
-bool udp_get_data(const buffer* x_buffer, udp_buffer* udpb)
-{
-    // TODO: Заглушка, т.к. нужно проверить 
-    udp_frame* udpf = (udp_frame*) x_buffer->data;
-    if (udpf->proto != UDP_PROTO)
-        return false;
-    udpb->data = (uint8_t*) x_buffer->data + sizeof(udp_frame);
-    udpb->size_used = udpf->lendg - 8U;
-    return true;
+   return ~sum;
 }
 
 
@@ -194,6 +145,8 @@ bool icmp_send(buffer* tx_buffer, const buffer* rx_buffer)
         return false;
     if (tx_buffer->size_alloc < rx_buffer->size_used)
         return false;
+    
+    tx_buffer->size_used  = rx_buffer->size_used;
 
     icmp_frame* tx_icmpf = (icmp_frame*) tx_buffer->data;
     icmp_frame* rx_icmpf = (icmp_frame*) rx_buffer->data;
@@ -218,10 +171,10 @@ bool icmp_send(buffer* tx_buffer, const buffer* rx_buffer)
     tx_icmpf->le          = rx_icmpf->le;
     
     memcpy(tx_icmpf->time, rx_icmpf->time, sizeof tx_icmpf->time);
-    memcpy(tx_buffer->data + sizeof(*tx_icmpf), rx_buffer->data + sizeof(*rx_icmpf), rx_buffer->size_used - sizeof(*rx_icmpf));
+    memcpy(tx_buffer->data + sizeof(*tx_icmpf), rx_buffer->data + sizeof(*rx_icmpf), tx_buffer->size_used - sizeof(*tx_icmpf));
     
     tx_icmpf->csum        = get_checksum(&tx_icmpf->opcode, tx_buffer->size_used - (uint32_t)((uint8_t*) &tx_icmpf->opcode - (uint8_t*)tx_icmpf));
     tx_icmpf->hdr_csum    = get_checksum(&tx_icmpf->verlen, (uint32_t) ((uint8_t*) &tx_icmpf->opcode - (uint8_t*) &tx_icmpf->verlen));
-    tx_buffer->size_used  = rx_buffer->size_used;
+    
     return true;
 }

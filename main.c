@@ -4,7 +4,6 @@
 
 const uint8_t MAC_SRC[]  = {0x00, 0xa0, 0x71, 0x67, 0x2c, 0xf7};
 const uint8_t  IP_ADDR[] = {10,  1,   2,  70};    /**< ip-адрес этого узла */
-const uint16_t IP_PORT   = 50090;                 /**< порт назначения при отправлении на этот узел */
 extern uint8_t MAC_BROADCAST[6];
 
 
@@ -34,7 +33,7 @@ void Clock_Init(void)
 	RST_CLK_PCLKcmd(RST_CLK_PCLK_EEPROM, ENABLE);
 	
     /* Sets the code latency value */
-	EEPROM_SetLatency(EEPROM_Latency_6);
+	EEPROM_SetLatency(EEPROM_Latency_5);
 
 	/* Select the CPU_PLL output as input for CPU_C3_SEL */
 	RST_CLK_CPU_PLLuse(ENABLE);
@@ -64,12 +63,13 @@ void Clock_Init(void)
 
 void Ethernet_Init(const uint8_t* mac_addr)
 {
-	ETH_InitTypeDef eth_init;
+    ETH_InitTypeDef eth_init;
 	ETH_DeInit(MDR_ETHERNET1);
     delay(100000U);
 	ETH_StructInit(&eth_init);
     memcpy(eth_init.ETH_MAC_Address, mac_addr, sizeof eth_init.ETH_MAC_Address);
-	ETH_Init(MDR_ETHERNET1, &eth_init);
+ 	ETH_Init(MDR_ETHERNET1, &eth_init);
+    delay(100000U);
 	ETH_PHYCmd(MDR_ETHERNET1, ENABLE);
     delay(10000000U);
     ETH_Start(MDR_ETHERNET1);
@@ -86,11 +86,10 @@ uint32_t eth_printf(const char* fmt, ...)
     va_list args;
     cnt = 0U;
     va_start(args, fmt);
-    cnt += vsprintf((char*) &tx_data[cnt + sizeof(uint32_t) + 14U], fmt, args);
+    cnt += vsprintf((char*) &tx_data[cnt + sizeof(uint32_t) + sizeof(mac_addrs)], fmt, args);
     va_end(args);
-    *(uint32_t*) (&tx_data[0U]) = cnt + sizeof '\0' + 14U;
+    *(uint32_t*)tx_data = cnt + sizeof '\0' + sizeof(mac_addrs);
     ETH_SendFrame(MDR_ETHERNET1, (uint32_t*)tx_data, *(uint32_t*)tx_data);
-    memset(&tx_data[sizeof(uint32_t)], 0U, cnt + sizeof '\0');
     return cnt;
 }
 
@@ -98,17 +97,20 @@ uint32_t eth_printf(const char* fmt, ...)
 void eth_receive(buffer* rx_buffer)
 {
     rx_buffer->size_used = 0U;
+    VE1T_ETH_STAT* eth_stat = (VE1T_ETH_STAT*) &MDR_ETHERNET1->ETH_STAT;
     if (MDR_ETHERNET1->ETH_R_Head == MDR_ETHERNET1->ETH_R_Tail)
         return;
     uint32_t status = ETH_ReceivedFrame(MDR_ETHERNET1, (uint32_t*) rx_buffer->data);
-    rx_buffer->size_used = ((ETH_StatusPacketReceptionBitFileds*)&status)->Length - sizeof(uint32_t);
-    ((VE1T_ETH_STAT*) &MDR_ETHERNET1->ETH_STAT)->R_COUNT --;
+    ETH_StatusPacketReceptionBitFileds* fields = (ETH_StatusPacketReceptionBitFileds*) &status;
+    rx_buffer->size_used = fields->Length - sizeof(uint32_t);
+    if (eth_stat->R_COUNT)
+        eth_stat->R_COUNT --;
 }
 
 
 uint32_t eth_send_data(buffer* tx_buffer)
 {
-    if (!tx_buffer->size_alloc)
+    if (!tx_buffer->size_used)
         return 0U;
     if (MDR_ETHERNET1->PHY_Status & ETH_PHY_FLAG_LINK)
         return 0U;
@@ -155,26 +157,35 @@ int main(void)
     mac_init_addr(&maddr, MAC_SRC, MAC_BROADCAST);
     
     buffer tx_buffer;
-    buffer rx_buffer;
+    init_buffer(&tx_buffer);
     
-    eth_printf("%s:%u:\"%s\"", __FILE__, __LINE__, TEST_MSG);
+    buffer rx_buffer;
+    init_buffer(&rx_buffer);
+    
+    eth_printf("%s:%u:\"%s\" %s", __FILE__, __LINE__, TEST_MSG, __DATE__);
 
     while (1U)
     {
         eth_update_leds();
         eth_receive(&rx_buffer);
-        
-        if (!rx_buffer.size_used)
-            continue;
-        
-        if (arp_receive(&rx_buffer, &maddr, *(uint32_t*)IP_ADDR))
+
+        if (rx_buffer.size_used)
         {
-            arp_send(&tx_buffer, &rx_buffer, &maddr, *(uint32_t*)IP_ADDR);
+            if (arp_receive(&rx_buffer, &maddr, *(uint32_t*)IP_ADDR))
+            {
+                arp_send(&tx_buffer, &rx_buffer, &maddr, *(uint32_t*)IP_ADDR);
+            }
+            else if (icmp_receive(&rx_buffer, *(uint32_t*)IP_ADDR))
+            {
+                icmp_send(&tx_buffer, &rx_buffer);
+            }
         }
-        else if (icmp_receive(&rx_buffer, *(uint32_t*)IP_ADDR))
+        if (tx_buffer.size_used)
         {
-            icmp_send(&tx_buffer, &rx_buffer);
+            if (eth_send_data(&tx_buffer))
+            {
+                tx_buffer.size_used = 0U;
+            }
         }
-        eth_send_data(&tx_buffer);
-	}
+    }
 }
